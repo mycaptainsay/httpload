@@ -9,6 +9,7 @@ runs the load-test engine, then asserts on the collected stats.
 import unittest
 import threading
 import time
+import socketserver
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 import httpload
@@ -17,6 +18,11 @@ import httpload
 # ---------------------------------------------------------------------------
 # Test HTTP server helpers
 # ---------------------------------------------------------------------------
+
+class _ThreadingHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
+    """HTTPServer that handles each request in its own thread."""
+    daemon_threads = True
+
 
 class _TestHandler(BaseHTTPRequestHandler):
     """Handler whose behaviour is controlled by class-level callbacks."""
@@ -32,10 +38,15 @@ class _TestHandler(BaseHTTPRequestHandler):
         pass
 
 
-def _start_server(handler_fn):
-    """Start an HTTP server on localhost:0, return (server, port)."""
+def _start_server(handler_fn, threaded=False):
+    """Start an HTTP server on localhost:0, return (server, port).
+
+    If *threaded* is True, uses ``ThreadingMixIn`` so concurrent slow
+    requests don't interfere with each other.
+    """
     _TestHandler.handler_fn = handler_fn
-    server = HTTPServer(("127.0.0.1", 0), _TestHandler)
+    cls = _ThreadingHTTPServer if threaded else HTTPServer
+    server = cls(("127.0.0.1", 0), _TestHandler)
     port = server.server_address[1]
     thread = threading.Thread(target=server.serve_forever, daemon=True)
     thread.start()
@@ -168,7 +179,7 @@ class TestTimeout(unittest.TestCase):
     """Verify that slow requests trigger timeout counting."""
 
     def test_timeout(self):
-        server, port = _start_server(_slow_handler)
+        server, port = _start_server(_slow_handler, threaded=True)
         try:
             stats, _, _, _, _ = httpload.run_load_test(
                 url=f"http://127.0.0.1:{port}/slow",
@@ -258,7 +269,7 @@ class TestInterrupt(unittest.TestCase):
     """
 
     def test_interrupt_stops_cleanly(self):
-        server, port = _start_server(_slow_handler)
+        server, port = _start_server(_slow_handler, threaded=True)
         try:
             interrupt = threading.Event()
             result = []

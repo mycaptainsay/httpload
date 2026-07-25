@@ -10,3 +10,5 @@ venv/
 *.log
 .DS_Store
 Thumbs.db
+testdata/
+审核问题清单.md

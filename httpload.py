@@ -198,11 +198,16 @@ def do_request(session: requests.Session, url: str, timeout_sec: float,
         else:
             stats.exit_request("non2xx", latency)
 
-    except requests.exceptions.Timeout:
-        stats.exit_request("timeouts", time.monotonic() - start)
-
     except requests.exceptions.ConnectionError:
+        # ConnectTimeout inherits from BOTH ConnectionError and Timeout
+        # (MRO: ConnectTimeout → ConnectionError → Timeout).
+        # Catching ConnectionError FIRST ensures all connection failures
+        # (including Windows ConnectTimeout on dead ports) → Error.
         stats.exit_request("errors", time.monotonic() - start)
+
+    except requests.exceptions.Timeout:
+        # Only reached by ReadTimeout now (ConnectTimeout caught above).
+        stats.exit_request("timeouts", time.monotonic() - start)
 
     except requests.exceptions.RequestException:
         stats.exit_request("errors", time.monotonic() - start)

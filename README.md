@@ -60,25 +60,25 @@ py -m unittest test_httpload -v
 
 ### 已完成
 
-- CLI 长/短参数与参数校验
+- CLI 长/短参数与参数校验（含 http/https scheme 白名单）
 - 固定 Worker Pool 并发控制（同时在途请求不超过 concurrency）
-- HTTP GET、单请求超时、响应关闭、Session 连接复用
-- 四类统计：Succeeded / Non-2xx / Errors / Timeouts
+- HTTP GET、单请求超时、`stream=True` 分块丢弃响应体、Session 连接复用
+- 四类统计：Succeeded / Non-2xx / Errors / Timeouts（独立 `_completed` 守恒校验）
+- in-flight 峰值追踪（`max_in_flight`）与相关自动化断言
 - 压测报告：Elapsed、Requests/sec、Avg/Min/Max latency
 - Ctrl+C：停止调度、输出部分结果、显示 Interrupted
 - 本地自动化测试（不依赖公网）
 
 ### 未完成 / 已知限制
 
-- 响应体默认仍会由 `requests` 读入内存（未使用 `stream=True` 分块丢弃）
 - 同步 `requests` 无法从外部强制取消已在执行的 HTTP 请求；中止后最多等待单请求 timeout
-- 自动化测试尚未覆盖：真实 SIGINT 路径、in-flight 并发峰值探针；部分断言仍偏松
+- 自动化测试用 `ext_interrupt` Event 模拟中止，未覆盖真实 SIGINT 路径
+- 在部分环境下（如 Windows 连不上目标端口），`ConnectTimeout` 可能被归入 Timeouts 而非 Errors
 
 ### 若继续开发
 
-1. `session.get(..., stream=True)` + 分块丢弃响应体
-2. 增加 in-flight 峰值断言测试；收紧超时/错误分类断言
-3. 若需要真正取消 in-flight，考虑迁移到 `aiohttp` 等可取消的异步客户端
+1. 将 `ConnectTimeout` 明确归类为 Errors，与 ReadTimeout 区分
+2. 若需要真正取消 in-flight，考虑迁移到 `aiohttp` 等可取消的异步客户端
 
 ## 输出示例
 

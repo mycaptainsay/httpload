@@ -68,12 +68,15 @@ py -m unittest test_httpload -v
 
 ### 已知限制
 
-- 同步 `requests` 无法从外部取消 in-flight 请求；Ctrl+C 后最多等待 `--timeout` 时长
-- 仅支持 HTTP GET（题目必做范围）
-- 自动化测试用 `ext_interrupt` Event 模拟中断（逻辑等价于 SIGINT 路径）
+- **Ctrl+C 无法真正取消 in-flight 请求**。同步 `requests` 基于阻塞 socket，无法从外部中断。中止后已发出的请求只能等自身超时或完成，最长等待 `--timeout` 时长
+- **仅支持 HTTP GET**（题目必做范围）
+- **自动化测试用 `ext_interrupt` Event 模拟中断**，逻辑等价于真实 SIGINT 路径，但未覆盖 OS 级信号
+- **`test_timeout` 偶发 flaky**：多线程慢服务场景下，客户端超时瞬间若服务器恰好尝试写响应，TCP 连接重置会被 `requests` 封装为 `ConnectionError`（而非 `ReadTimeout`），导致少数请求记入 Errors。此为测试环境竞态，非 httpload 分类逻辑缺陷。目前断言 `timeouts >= 18` 偶尔失败（实测 timeouts 18~20 波动），可改为 `timeouts + errors == 20` 且 `timeouts > 0` 彻底解决
+- **测试输出含 `ResourceWarning` / `ConnectionAbortedError`**：来自测试用 `http.server` 模块，客户端超时断开后服务端仍尝试写响应导致，不影响 httpload 主功能
 
 ### 若继续开发
 
 - 增加 POST/PUT 等方法支持
 - 增加自定义 Header/Body
 - 迁移到 `aiohttp` 以支持真正取消 in-flight 请求
+- 放宽 `test_timeout` 断言以彻底消除 flaky
